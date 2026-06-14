@@ -96,6 +96,15 @@ export function compactItems(items, maxItems = 120) {
   }));
 }
 
+export function estimateDeepSeekFlashCost(usage = {}) {
+  const input = usage.prompt_tokens || 0;
+  const cacheHit = Math.min(usage.prompt_cache_hit_tokens || 0, input);
+  const cacheMiss = Math.max(input - cacheHit, 0);
+  const output = usage.completion_tokens || 0;
+  const usd = (cacheHit * 0.0028 + cacheMiss * 0.14 + output * 0.28) / 1_000_000;
+  return { input, output, cacheHit, cacheMiss, total: usage.total_tokens || input + output, usd };
+}
+
 export function keywordMatch(text, keywords) {
   const haystack = text.toLowerCase();
   return keywords.some((keyword) => haystack.includes(keyword.toLowerCase()));

@@ -12,6 +12,7 @@ import {
   beijingDate,
   compactItems,
   dedupeItems,
+  estimateDeepSeekFlashCost,
   isRecent,
   keywordMatch,
   makePharmaPageTitle,
@@ -355,6 +356,15 @@ async function main() {
   });
   const markdown = response.choices[0]?.message?.content?.trim();
   if (!markdown) throw new Error('DeepSeek returned an empty pharma digest.');
+  const cost = estimateDeepSeekFlashCost(response.usage);
+  console.log(`DeepSeek usage: ${JSON.stringify({
+    inputTokens: cost.input,
+    outputTokens: cost.output,
+    cacheHitTokens: cost.cacheHit,
+    cacheMissTokens: cost.cacheMiss,
+    totalTokens: cost.total,
+    estimatedUsd: Number(cost.usd.toFixed(6)),
+  })}`);
   await publishToNotion(markdown, title);
 }
 

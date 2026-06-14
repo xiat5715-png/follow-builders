@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   beijingDate,
   dedupeItems,
+  estimateDeepSeekFlashCost,
   isRecent,
   makePharmaPageTitle,
   normalizeTitle,
@@ -40,4 +41,16 @@ test('isRecent respects the lookback window', () => {
 test('pharma title and Beijing date are deterministic', () => {
   assert.equal(beijingDate(new Date('2026-06-14T00:30:00Z')), '2026-06-14');
   assert.equal(makePharmaPageTitle('2026-06-14'), '医药与 AI4S 情报日报 - 2026-06-14');
+});
+
+test('DeepSeek cost estimate separates cache hits and misses', () => {
+  const cost = estimateDeepSeekFlashCost({
+    prompt_tokens: 100000,
+    prompt_cache_hit_tokens: 20000,
+    completion_tokens: 5000,
+    total_tokens: 105000,
+  });
+  assert.equal(cost.cacheMiss, 80000);
+  assert.equal(cost.total, 105000);
+  assert.ok(Math.abs(cost.usd - 0.012656) < 1e-9);
 });
