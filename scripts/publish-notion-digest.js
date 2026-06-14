@@ -70,7 +70,7 @@ async function findExistingPage(notion, dataSourceId, titleProperty, title) {
 }
 
 async function main() {
-  requireEnv(process.env, ['OPENAI_API_KEY', 'NOTION_TOKEN', 'NOTION_DATABASE_ID']);
+  requireEnv(process.env, ['DEEPSEEK_API_KEY', 'NOTION_TOKEN', 'NOTION_DATABASE_ID']);
 
   const [feedX, feedPodcasts, feedBlogs] = await Promise.all([
     fetchJson(FEED_X_URL),
@@ -81,14 +81,25 @@ async function main() {
   const title = makePageTitle(date);
   const feeds = compactFeeds({ feedX, feedPodcasts, feedBlogs });
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const response = await openai.responses.create({
-    model: process.env.OPENAI_MODEL || 'gpt-5.5',
-    input: buildPrompt(date, feeds),
+  const deepseek = new OpenAI({
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    baseURL: 'https://api.deepseek.com',
   });
-  const markdown = response.output_text?.trim();
+  const response = await deepseek.chat.completions.create({
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a careful editor. Follow the source-only and URL rules exactly.',
+      },
+      { role: 'user', content: buildPrompt(date, feeds) },
+    ],
+    stream: false,
+    extra_body: { thinking: { type: 'disabled' } },
+  });
+  const markdown = response.choices[0]?.message?.content?.trim();
   if (!markdown) {
-    throw new Error('OpenAI returned an empty digest.');
+    throw new Error('DeepSeek returned an empty digest.');
   }
 
   const notion = new Client({

@@ -21,7 +21,7 @@ test('makePageTitle uses the daily digest format', () => {
 
 test('requireEnv reports all missing secrets', () => {
   assert.throws(
-    () => requireEnv({ NOTION_TOKEN: '' }, ['NOTION_TOKEN', 'OPENAI_API_KEY']),
-    /NOTION_TOKEN, OPENAI_API_KEY/,
+    () => requireEnv({ NOTION_TOKEN: '' }, ['NOTION_TOKEN', 'DEEPSEEK_API_KEY']),
+    /NOTION_TOKEN, DEEPSEEK_API_KEY/,
   );
 });

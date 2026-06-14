@@ -18,11 +18,11 @@ Add these repository secrets under `Settings > Secrets and variables > Actions`:
 
 - `NOTION_TOKEN`: the Notion internal integration token.
 - `NOTION_DATABASE_ID`: the database ID from the Notion URL.
-- `OPENAI_API_KEY`: an OpenAI API key used to generate the Chinese digest.
+- `DEEPSEEK_API_KEY`: a DeepSeek API key used to generate the Chinese digest.
 
 Optional repository variable:
 
-- `OPENAI_MODEL`: overrides the default `gpt-5.5` model.
+- `DEEPSEEK_MODEL`: overrides the default `deepseek-v4-flash` model.
 
 The `Publish Digest to Notion` workflow runs every day at 00:00 UTC, which is
 08:00 in Asia/Shanghai. It can also be started manually from the Actions tab.
