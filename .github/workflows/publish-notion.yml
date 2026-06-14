@@ -1,0 +1,33 @@
+name: Publish Digest to Notion
+
+on:
+  schedule:
+    # 08:00 Asia/Shanghai. GitHub Actions schedules use UTC.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm ci
+
+      - name: Generate Chinese digest and publish to Notion
+        working-directory: scripts
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+        run: npm run publish-notion
