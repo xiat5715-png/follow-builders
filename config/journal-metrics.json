@@ -1,0 +1,9 @@
+{
+  "metadata": {
+    "metric": "Journal Impact Factor",
+    "provider": "Clarivate Journal Citation Reports",
+    "year": null,
+    "note": "Populate only from a licensed JCR export or another source you are authorized to use. Do not estimate values."
+  },
+  "journals": {}
+}

@@ -33,6 +33,8 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           PHARMA_NOTION_DATABASE_ID: ${{ secrets.PHARMA_NOTION_DATABASE_ID }}
           X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           PHARMA_EXTRA_FEEDS_JSON: ${{ secrets.PHARMA_EXTRA_FEEDS_JSON }}
+          JOURNAL_METRICS_JSON: ${{ secrets.JOURNAL_METRICS_JSON }}
           DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL }}
         run: npm run publish-pharma

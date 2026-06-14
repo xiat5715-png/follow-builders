@@ -93,7 +93,33 @@ export function compactItems(items, maxItems = 120) {
     bucketHint: item.bucketHint,
     language: item.language,
     authors: item.authors,
+    doi: item.doi,
+    journal: item.journal,
+    publicationStatus: item.publicationStatus,
+    journalMetrics: item.journalMetrics,
+    articleCitations: item.articleCitations,
+    correspondingAuthor: item.correspondingAuthor,
+    correspondingInstitution: item.correspondingInstitution,
+    authorProfile: item.authorProfile,
   }));
+}
+
+export function normalizeDoi(value = '') {
+  return value
+    .trim()
+    .replace(/^https?:\/\/(dx\.)?doi\.org\//i, '')
+    .replace(/^doi:\s*/i, '');
+}
+
+export function lookupJournalMetric(metrics, { journal, issn = [] } = {}) {
+  const journals = metrics?.journals || {};
+  const candidates = [journal, ...issn]
+    .filter(Boolean)
+    .map((value) => String(value).trim().toLowerCase());
+  for (const key of candidates) {
+    if (journals[key]) return journals[key];
+  }
+  return null;
 }
 
 export function estimateDeepSeekFlashCost(usage = {}) {

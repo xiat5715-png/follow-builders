@@ -35,6 +35,10 @@ Optional:
 
 - `PHARMA_NOTION_DATABASE_ID`: publish to a separate pharma database
 - `X_BEARER_TOKEN`: enable recent X search
+- `OPENALEX_API_KEY`: optional free key for more reliable author, institution,
+  citation, and public journal-metric enrichment
+- `JOURNAL_METRICS_JSON`: optional licensed/manual JCR mapping. Values must include
+  the metric year and source; the workflow never estimates an Impact Factor.
 - `PHARMA_EXTRA_FEEDS_JSON`: JSON array of additional RSS feed definitions
 
 Example extra feed value:

@@ -15,17 +15,22 @@ import {
   estimateDeepSeekFlashCost,
   isRecent,
   keywordMatch,
+  lookupJournalMetric,
   makePharmaPageTitle,
+  normalizeDoi,
+  normalizeTitle,
   stripHtml,
 } from './pharma-intelligence-utils.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = join(SCRIPT_DIR, '..', 'config', 'pharma-intelligence-sources.json');
+const JOURNAL_METRICS_PATH = join(SCRIPT_DIR, '..', 'config', 'journal-metrics.json');
 const parser = new Parser({ timeout: 20_000 });
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     ...options,
+    signal: options.signal || AbortSignal.timeout(20_000),
     headers: {
       'User-Agent': 'pharma-ai4s-intelligence/1.0 (GitHub Actions)',
       Accept: 'application/json',
@@ -86,19 +91,28 @@ async function collectEuropePmc(config, errors) {
       return (data.resultList?.result || [])
         .filter((item) => isRecent(item.firstPublicationDate || item.firstIndexDate, 24 * 21))
         .slice(0, 10)
-        .map((item) => ({
+        .map((item) => {
+          const publicationTypes = item.pubTypeList?.pubType || [];
+          const isPreprint = publicationTypes.some((type) => String(type).toLowerCase() === 'preprint');
+          return ({
           title: item.title,
           summary: item.abstractText || `${item.journalTitle || ''} ${item.authorString || ''}`,
           url: item.doi
             ? `https://doi.org/${item.doi}`
             : `https://europepmc.org/article/${item.source || 'MED'}/${item.id}`,
           publishedAt: item.firstPublicationDate || item.firstIndexDate,
-          source: item.journalTitle || 'Europe PMC',
-          sourceType: item.pubTypeList?.pubType?.includes('preprint') ? 'preprint' : 'research',
+          source: item.journalInfo?.journal?.title || item.journalTitle || (isPreprint ? 'Preprint' : 'Europe PMC'),
+          sourceType: isPreprint ? 'preprint' : 'research',
           bucketHint: 'ai4s-research',
           language: 'en',
           authors: item.authorString,
-        }));
+          doi: normalizeDoi(item.doi || ''),
+          journal: item.journalInfo?.journal?.title || item.journalTitle || null,
+          journalIssn: [item.journalInfo?.journal?.issn, item.journalInfo?.journal?.essn].filter(Boolean),
+          publicationStatus: isPreprint ? 'preprint' : 'peer-reviewed',
+          europePmcId: item.id,
+        });
+        });
     } catch (error) {
       errors.push(`Europe PMC query ${source.id}: ${error.message}`);
       return [];
@@ -122,11 +136,117 @@ async function collectBiorxiv(config, errors) {
         bucketHint: 'ai4s-research',
         language: 'en',
         authors: item.authors,
+        doi: normalizeDoi(item.doi || ''),
+        journal: 'bioRxiv',
+        publicationStatus: 'preprint',
+        correspondingAuthor: item.author_corresponding || null,
+        correspondingInstitution: item.author_corresponding_institution || null,
       }));
   } catch (error) {
     errors.push(`bioRxiv: ${error.message}`);
     return [];
   }
+}
+
+async function loadJournalMetrics(errors) {
+  try {
+    const local = JSON.parse(await readFile(JOURNAL_METRICS_PATH, 'utf8'));
+    if (!process.env.JOURNAL_METRICS_JSON) return local;
+    const injected = JSON.parse(process.env.JOURNAL_METRICS_JSON);
+    return {
+      metadata: injected.metadata || local.metadata,
+      journals: { ...(local.journals || {}), ...(injected.journals || {}) },
+    };
+  } catch (error) {
+    errors.push(`Journal metrics: ${error.message}`);
+    return { journals: {} };
+  }
+}
+
+async function enrichResearchItems(items, journalMetrics, errors) {
+  const sourceCache = new Map();
+  const authorCache = new Map();
+  const apiKey = process.env.OPENALEX_API_KEY;
+  const withAuth = (url) => {
+    const parsed = new URL(url);
+    if (apiKey) parsed.searchParams.set('api_key', apiKey);
+    return parsed.toString();
+  };
+  const openAlexJson = async (url) => fetchJson(withAuth(url));
+  const getCached = async (cache, key, loader) => {
+    if (!key) return null;
+    if (!cache.has(key)) cache.set(key, loader().catch(() => null));
+    return cache.get(key);
+  };
+
+  for (const item of items) {
+    if (!['research', 'preprint'].includes(item.sourceType)) continue;
+    try {
+      let work = null;
+      if (item.doi) {
+        work = await openAlexJson(`https://api.openalex.org/works/https://doi.org/${item.doi}`);
+      } else {
+        const params = new URLSearchParams({ search: item.title, 'per-page': '1' });
+        const search = await openAlexJson(`https://api.openalex.org/works?${params}`);
+        const candidate = search.results?.[0];
+        const expected = normalizeTitle(item.title);
+        const actual = normalizeTitle(candidate?.display_name || '');
+        if (candidate && expected === actual) work = candidate;
+      }
+      const source = work?.primary_location?.source;
+      item.journal = source?.display_name || item.journal;
+      item.articleCitations = work?.cited_by_count ?? null;
+
+      const sourceId = source?.id?.split('/').pop();
+      const issn = source?.issn?.[0] || item.journalIssn?.[0];
+      const sourceKey = sourceId || (issn ? `issn:${issn}` : null);
+      const sourceProfile = await getCached(sourceCache, sourceKey, () =>
+        openAlexJson(sourceId
+          ? `https://api.openalex.org/sources/${sourceId}`
+          : `https://api.openalex.org/sources/issn:${issn}`),
+      );
+      const jcr = lookupJournalMetric(journalMetrics, {
+        journal: item.journal,
+        issn: sourceProfile?.ids?.issn || source?.issn || item.journalIssn || [],
+      });
+      item.journalMetrics = {
+        jcrImpactFactor: jcr || null,
+        openAlex: sourceProfile ? {
+          twoYearMeanCitedness: sourceProfile.summary_stats?.['2yr_mean_citedness'] ?? null,
+          hIndex: sourceProfile.summary_stats?.h_index ?? null,
+          worksCount: sourceProfile.works_count ?? null,
+          citedByCount: sourceProfile.cited_by_count ?? null,
+          note: 'OpenAlex public metric; not Journal Impact Factor',
+        } : null,
+      };
+
+      const corresponding = work?.authorships?.find((authorship) => authorship.is_corresponding);
+      if (corresponding) {
+        item.correspondingAuthor ||= corresponding.author?.display_name;
+        item.correspondingInstitution ||= corresponding.institutions?.map((i) => i.display_name).join('; ');
+        const authorId = corresponding.author?.id?.split('/').pop();
+        const profile = await getCached(authorCache, authorId, () =>
+          openAlexJson(`https://api.openalex.org/authors/${authorId}`),
+        );
+        if (profile) {
+          item.authorProfile = {
+            name: profile.display_name,
+            orcid: profile.ids?.orcid || null,
+            institutions: profile.last_known_institutions?.map((i) => i.display_name) || [],
+            worksCount: profile.works_count,
+            citedByCount: profile.cited_by_count,
+            hIndex: profile.summary_stats?.h_index,
+            i10Index: profile.summary_stats?.i10_index,
+            topics: profile.topics?.slice(0, 5).map((topic) => topic.display_name) || [],
+            openAlexUrl: profile.id,
+          };
+        }
+      }
+    } catch (error) {
+      errors.push(`OpenAlex enrichment ${item.doi}: ${error.message}`);
+    }
+  }
+  return items;
 }
 
 async function collectPodcasts(config, errors) {
@@ -266,6 +386,10 @@ function buildPrompt(date, items, collectionStats) {
 - 选择约 15-30 条高信号内容；没有可靠内容的栏目写“今日无高信号更新”，不要凑数。
 - 每条用粗体短标题开头，随后写：发生了什么、为什么重要、主体属于大药企/CRO/CDMO/biotech/AI biotech 中哪类。
 - 每条必须附原始 URL，并标注来源名、发布日期和来源类型。
+- 正式论文必须标注期刊名和 DOI。若 journalMetrics.jcrImpactFactor 有值，按“JCR IF 数值（年份，来源）”展示；没有则写“JCR IF：未核验”，禁止猜测。
+- 可同时展示 OpenAlex 2-year mean citedness、期刊 h-index 和论文当前引用数，但必须明确这些是公开文献计量指标，不是 Journal Impact Factor，也不能直接代表单篇论文质量。
+- 预印本必须显著标注“未经同行评议”，列出通讯作者和单位；若没有对应字段，写“通讯作者/单位：未核验”，不能默认末位作者就是通讯作者。
+- 若有 authorProfile，用论文数、总引用数、h-index、ORCID、机构和主要研究主题描述其公开学术轨迹。对“水平如何”采用证据化措辞，如“公开指标显示研究积累较深/尚处于早期”，同时提醒作者消歧和指标局限；禁止仅凭学校或单一 h-index 下结论。
 - 同一事件有多条报道时合并，优先保留官方、监管机构、论文原文，其次是高质量媒体。
 - 明确区分公司公告、媒体报道、论文/预印本和人物观点；预印本必须标“未经同行评议”。
 - 不把相关性当因果，不把早期研究写成临床结论，不提供投资或医疗建议。
@@ -316,13 +440,18 @@ async function main() {
   if (!dryRun) requireEnv(process.env, ['DEEPSEEK_API_KEY', 'NOTION_TOKEN']);
   const config = JSON.parse(await readFile(CONFIG_PATH, 'utf8'));
   const errors = [];
-  const [news, research, preprints, podcasts, xPosts, custom] = await Promise.all([
+  const [news, researchRaw, preprintsRaw, podcasts, xPosts, custom, journalMetrics] = await Promise.all([
     collectNews(config, errors),
     collectEuropePmc(config, errors),
     collectBiorxiv(config, errors),
     collectPodcasts(config, errors),
     collectX(config, errors),
     collectCustomFeeds(config, errors),
+    loadJournalMetrics(errors),
+  ]);
+  const [research, preprints] = await Promise.all([
+    enrichResearchItems(researchRaw, journalMetrics, errors),
+    enrichResearchItems(preprintsRaw, journalMetrics, errors),
   ]);
 
   const ordered = [...research, ...preprints, ...xPosts, ...podcasts, ...custom, ...news]
@@ -338,7 +467,11 @@ async function main() {
   };
   console.log(`Collected source items: ${JSON.stringify(stats.collected)}; model input: ${items.length}`);
   if (dryRun) {
-    console.log(JSON.stringify({ stats, sample: items.slice(0, 10) }, null, 2));
+    console.log(JSON.stringify({
+      stats,
+      sample: items.slice(0, 10),
+      researchSample: items.filter((item) => ['research', 'preprint'].includes(item.sourceType)).slice(0, 5),
+    }, null, 2));
     return;
   }
 

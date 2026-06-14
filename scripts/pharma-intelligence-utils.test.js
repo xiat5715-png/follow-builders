@@ -5,8 +5,10 @@ import {
   dedupeItems,
   estimateDeepSeekFlashCost,
   isRecent,
+  lookupJournalMetric,
   makePharmaPageTitle,
   normalizeTitle,
+  normalizeDoi,
   stripHtml,
 } from './pharma-intelligence-utils.js';
 
@@ -53,4 +55,14 @@ test('DeepSeek cost estimate separates cache hits and misses', () => {
   assert.equal(cost.cacheMiss, 80000);
   assert.equal(cost.total, 105000);
   assert.ok(Math.abs(cost.usd - 0.012656) < 1e-9);
+});
+
+test('DOIs and licensed journal metrics are normalized without guessing', () => {
+  assert.equal(normalizeDoi('https://doi.org/10.1234/ABC'), '10.1234/ABC');
+  const metrics = { journals: { '1234-5678': { value: 12.3, year: 2025, source: 'JCR' } } };
+  assert.deepEqual(
+    lookupJournalMetric(metrics, { journal: 'Example Journal', issn: ['1234-5678'] }),
+    { value: 12.3, year: 2025, source: 'JCR' },
+  );
+  assert.equal(lookupJournalMetric(metrics, { journal: 'Unknown' }), null);
 });
