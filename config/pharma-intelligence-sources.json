@@ -1,0 +1,133 @@
+{
+  "lookbackHours": 48,
+  "maxItemsPerQuery": 8,
+  "maxItemsForModel": 120,
+  "newsQueries": [
+    {
+      "id": "global-big-pharma",
+      "locale": "en",
+      "bucket": "overseas",
+      "query": "(Pfizer OR Roche OR Genentech OR Novartis OR Merck OR MSD OR AstraZeneca OR Bristol Myers Squibb OR Johnson & Johnson OR Eli Lilly OR Sanofi OR GSK OR AbbVie OR Amgen OR Novo Nordisk OR Bayer OR Takeda) (drug OR trial OR approval OR acquisition OR licensing OR pipeline OR CEO OR CSO)"
+    },
+    {
+      "id": "china-pharma",
+      "locale": "zh",
+      "bucket": "china",
+      "query": "(恒瑞医药 OR 百济神州 OR 药明康德 OR 药明生物 OR 信达生物 OR 君实生物 OR 石药集团 OR 复星医药 OR 翰森制药 OR 再鼎医药 OR 传奇生物 OR 康方生物 OR 先声药业) (临床 OR 获批 OR 授权 OR 交易 OR 管线 OR 研发 OR 高管 OR 业绩)"
+    },
+    {
+      "id": "global-cro-cdmo",
+      "locale": "en",
+      "bucket": "cro-cdmo",
+      "query": "(IQVIA OR ICON plc OR Parexel OR Labcorp OR Charles River OR Syneos Health OR Lonza OR Catalent OR Thermo Fisher OR WuXi AppTec OR WuXi Biologics) (CRO OR CDMO OR clinical trial OR manufacturing OR acquisition OR partnership OR capacity)"
+    },
+    {
+      "id": "china-cro-cdmo",
+      "locale": "zh",
+      "bucket": "cro-cdmo",
+      "query": "(药明康德 OR 药明生物 OR 康龙化成 OR 泰格医药 OR 凯莱英 OR 博腾股份 OR 昭衍新药 OR 金斯瑞) (CRO OR CDMO OR 临床研究 OR 产能 OR 订单 OR 合作 OR 并购 OR 高管)"
+    },
+    {
+      "id": "biotech-deals",
+      "locale": "en",
+      "bucket": "biotech",
+      "query": "biotech (licensing deal OR acquisition OR financing OR IPO OR clinical readout OR phase 1 OR phase 2 OR phase 3 OR FDA approval)"
+    },
+    {
+      "id": "regulatory",
+      "locale": "en",
+      "bucket": "rd-regulatory",
+      "query": "(FDA OR EMA OR NMPA) (drug approval OR complete response letter OR clinical hold OR breakthrough therapy OR accelerated approval OR guidance)"
+    },
+    {
+      "id": "regulatory-cn",
+      "locale": "zh",
+      "bucket": "rd-regulatory",
+      "query": "(国家药监局 OR NMPA OR CDE) (药品获批 OR 突破性治疗 OR 优先审评 OR 临床试验 OR 指导原则)"
+    },
+    {
+      "id": "executives",
+      "locale": "en",
+      "bucket": "people",
+      "query": "(pharma OR biotech OR CRO) (CEO OR CSO OR chief scientific officer OR head of R&D OR executive departure OR appointed OR interview OR podcast)"
+    },
+    {
+      "id": "executives-cn",
+      "locale": "zh",
+      "bucket": "people",
+      "query": "(医药 OR 生物科技 OR CRO) (董事长 OR CEO OR 首席科学家 OR 研发负责人 OR 高管离职 OR 高管任命 OR 访谈 OR 观点)"
+    },
+    {
+      "id": "ai-biopharma-companies",
+      "locale": "en",
+      "bucket": "ai4s-company",
+      "query": "(XtalPi OR Insilico Medicine OR Recursion OR Isomorphic Labs OR Schrödinger OR Generate Biomedicines OR Owkin OR BenevolentAI OR Deep Genomics OR EvolutionaryScale OR FutureHouse) (AI drug discovery OR foundation model OR partnership OR financing OR clinical OR model)"
+    },
+    {
+      "id": "ai-biopharma-companies-cn",
+      "locale": "zh",
+      "bucket": "ai4s-company",
+      "query": "(晶泰科技 OR 英矽智能 OR 百图生科 OR 深势科技 OR 华深智药 OR 星亢原 OR 望石智慧 OR 分子之心 OR 水木分子) (AI制药 OR 大模型 OR 合作 OR 融资 OR 临床 OR 研发)"
+    },
+    {
+      "id": "ai4s-research",
+      "locale": "en",
+      "bucket": "ai4s-research",
+      "query": "(biology foundation model OR protein language model OR single-cell foundation model OR spatial transcriptomics AI OR virtual cell OR generative protein design OR autonomous laboratory OR AI scientist biology OR aging clock machine learning)"
+    },
+    {
+      "id": "ai4s-research-cn",
+      "locale": "zh",
+      "bucket": "ai4s-research",
+      "query": "(生物大模型 OR 蛋白质语言模型 OR 单细胞基础模型 OR 空间组学 AI OR 虚拟细胞 OR 蛋白质生成 OR 自动化实验室 OR AI科学家 OR 衰老时钟 OR 生物钟 大模型)"
+    }
+  ],
+  "researchQueries": [
+    {
+      "id": "foundation-models",
+      "query": "(\"foundation model\" OR \"large language model\" OR \"generative AI\") AND (biology OR protein OR genome OR \"single cell\" OR \"spatial transcriptomics\")"
+    },
+    {
+      "id": "drug-discovery",
+      "query": "(\"artificial intelligence\" OR \"machine learning\") AND (\"drug discovery\" OR \"molecular design\" OR \"protein design\" OR \"clinical trial\")"
+    },
+    {
+      "id": "aging-clock",
+      "query": "(\"aging clock\" OR \"biological age\" OR \"circadian clock\") AND (\"machine learning\" OR \"deep learning\" OR \"foundation model\")"
+    },
+    {
+      "id": "virtual-cell",
+      "query": "(\"virtual cell\" OR \"digital cell\" OR \"cell simulation\") AND (\"artificial intelligence\" OR \"foundation model\")"
+    }
+  ],
+  "preprintKeywords": [
+    "foundation model",
+    "language model",
+    "generative model",
+    "artificial intelligence",
+    "machine learning",
+    "deep learning",
+    "virtual cell",
+    "single-cell",
+    "single cell",
+    "spatial transcriptomics",
+    "protein design",
+    "drug discovery",
+    "aging clock",
+    "biological age",
+    "circadian"
+  ],
+  "podcasts": [
+    "The Readout LOUD",
+    "The Business of Biotech",
+    "Bio Eats World",
+    "The BioCentury Show",
+    "a16z Bio + Health",
+    "AI in Biotech"
+  ],
+  "xQueries": [
+    "(Pfizer OR Roche OR Novartis OR AstraZeneca OR Lilly OR BeiGene OR WuXi) (trial OR approval OR pipeline OR partnership) -is:retweet lang:en",
+    "(XtalPi OR Insilico OR Recursion OR IsomorphicLabs OR EvolutionaryScale) (model OR biology OR drug OR protein) -is:retweet lang:en"
+  ],
+  "customFeeds": []
+}

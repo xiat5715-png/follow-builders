@@ -1,0 +1,38 @@
+name: Publish Pharma and AI4S Intelligence
+
+on:
+  schedule:
+    # 08:30 Asia/Shanghai. GitHub Actions schedules use UTC.
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm ci
+
+      - name: Collect, analyze, and publish pharma intelligence
+        working-directory: scripts
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          PHARMA_NOTION_DATABASE_ID: ${{ secrets.PHARMA_NOTION_DATABASE_ID }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          PHARMA_EXTRA_FEEDS_JSON: ${{ secrets.PHARMA_EXTRA_FEEDS_JSON }}
+          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL }}
+        run: npm run publish-pharma
