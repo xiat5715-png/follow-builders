@@ -6,6 +6,12 @@ on:
     # the backup exit before collection or the DeepSeek call.
     - cron: '37 0,1 * * *'
   workflow_dispatch:
+    inputs:
+      force_create:
+        description: Create a new page even if today's digest already exists
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   publish:
@@ -38,4 +44,5 @@ jobs:
           PHARMA_EXTRA_FEEDS_JSON: ${{ secrets.PHARMA_EXTRA_FEEDS_JSON }}
           JOURNAL_METRICS_JSON: ${{ secrets.JOURNAL_METRICS_JSON }}
           DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL }}
+          FORCE_NOTION_CREATE: ${{ inputs.force_create || 'false' }}
         run: npm run publish-pharma
