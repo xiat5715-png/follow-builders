@@ -15,8 +15,13 @@ This workflow produces a daily Chinese intelligence digest covering:
 
 The default collector uses bilingual Google News RSS queries, Europe PMC,
 bioRxiv, podcast RSS feeds discovered through the Apple Podcasts directory, and
-the source URLs contained in those records. Source configuration lives in
+the public ByDrug pages from 医药魔方 (医药新闻、行业报告、医药日历), and the
+source URLs contained in those records. Source configuration lives in
 `config/pharma-intelligence-sources.json`.
+
+The ByDrug integration reads only publicly rendered list information: title,
+summary, publisher, date, tags, access status, and original detail URL. It does
+not bypass login, VIP download, or other access controls.
 
 X is optional and requires `X_BEARER_TOKEN`. Arbitrary WeChat public-account
 search does not have a stable public API. Compliant WeChat RSS, RSSHub, company

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
 import { Client } from '@notionhq/client';
 import Parser from 'rss-parser';
+import { load } from 'cheerio';
 import { findTitleProperty, requireEnv, selectDataSource } from './notion-utils.js';
 import {
   beijingDate,
@@ -39,6 +40,113 @@ async function fetchJson(url, options = {}) {
   });
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
   return response.json();
+}
+
+async function fetchText(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    signal: options.signal || AbortSignal.timeout(20_000),
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; pharma-ai4s-intelligence/1.0)',
+      Accept: 'text/html,application/xhtml+xml',
+      ...options.headers,
+    },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+  return response.text();
+}
+
+function absoluteByDrugUrl(value) {
+  return new URL(value, 'https://bydrug.pharmcube.com').toString();
+}
+
+function relativeChineseTimeToIso(value, now = new Date()) {
+  const text = stripHtml(value);
+  const match = text.match(/(\d+)\s*(分钟|小时|天)前/);
+  if (!match) return now.toISOString();
+  const count = Number(match[1]);
+  const multiplier = match[2] === '分钟' ? 60_000 : match[2] === '小时' ? 3_600_000 : 86_400_000;
+  return new Date(now.getTime() - count * multiplier).toISOString();
+}
+
+async function collectByDrug(config, errors) {
+  const settings = config.byDrug;
+  if (!settings?.enabled) return [];
+  const items = [];
+  try {
+    const html = await fetchText(settings.newsUrl);
+    const $ = load(html);
+    $('a.news-title').slice(0, settings.maxNewsItems || 20).each((_, element) => {
+      const link = $(element);
+      const root = link.closest('.item-news');
+      const title = stripHtml(link.text());
+      const highlights = root.find('.highlight-container').map((__, node) => stripHtml($(node).text())).get();
+      const source = stripHtml(root.find('a.dark-link').first().text()) || '医药魔方 ByDrug';
+      const timeText = root.find('.gray-text')
+        .map((__, node) => stripHtml($(node).text()))
+        .get()
+        .find((value) => /(?:分钟前|小时前|天前|刚刚)/.test(value)) || '';
+      if (!title || !link.attr('href')) return;
+      items.push({
+        title,
+        summary: highlights.find((value) => value && value !== title) || '',
+        url: absoluteByDrugUrl(link.attr('href')),
+        publishedAt: relativeChineseTimeToIso(timeText),
+        source: `${source} via 医药魔方 ByDrug`,
+        sourceType: 'bydrug-news',
+        bucketHint: 'china',
+        language: 'zh',
+        metadata: { module: '医药新闻', displayedTime: timeText },
+      });
+    });
+  } catch (error) {
+    errors.push(`ByDrug news: ${error.message}`);
+  }
+
+  try {
+    const html = await fetchText(settings.reportUrl);
+    const $ = load(html);
+    let reportCount = 0;
+    $('a.fileName').each((_, element) => {
+      if (reportCount >= (settings.maxReportItems || 12)) return;
+      const link = $(element);
+      const root = link.closest('.app-report-item-double');
+      const title = stripHtml(link.text()).replace(/^推荐\s*/, '').replace(/推荐$/, '').trim();
+      const organization = stripHtml(root.find('a.dark-link').first().text()) || '医药魔方 ByDrug';
+      const dateText = stripHtml(root.text()).match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0] || '';
+      const labels = root.find('a').not('.fileName,.dark-link').map((__, node) => stripHtml($(node).text())).get().filter(Boolean);
+      const access = root.text().includes('VIP下载') ? 'VIP' : root.text().includes('免费下载') ? '免费' : '查看报告';
+      const publishedAt = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? `${dateText}T00:00:00+08:00` : null;
+      if (!title || !link.attr('href') || !publishedAt) return;
+      items.push({
+        title,
+        summary: `发布机构：${organization}；标签：${labels.join('、') || '未标注'}；访问状态：${access}。`,
+        url: absoluteByDrugUrl(link.attr('href')),
+        publishedAt,
+        source: `${organization} via 医药魔方 ByDrug`,
+        sourceType: 'bydrug-report',
+        bucketHint: labels.some((label) => /新药研发|临床|学术会议|技术/.test(label)) ? 'rd-regulatory' : 'china',
+        language: 'zh',
+        metadata: { module: '行业报告', labels, access },
+      });
+      reportCount += 1;
+    });
+  } catch (error) {
+    errors.push(`ByDrug reports: ${error.message}`);
+  }
+
+  items.push({
+    title: '医药魔方医药日历：未来会议与行业事件跟踪入口',
+    summary: '医药魔方公开日历按月汇总国内会议和海外会议。仅作为后续事件核查入口；若页面未公开具体事件，本日报不推断会议内容。',
+    url: settings.calendarUrl,
+    publishedAt: new Date().toISOString(),
+    source: '医药魔方 ByDrug',
+    sourceType: 'bydrug-calendar',
+    bucketHint: 'calendar',
+    language: 'zh',
+    metadata: { module: '医药日历' },
+  });
+  return items;
 }
 
 function googleNewsUrl(query, locale) {
@@ -381,6 +489,9 @@ function buildPrompt(date, items, collectionStats) {
 ## 值得继续跟踪
 列出 3-6 个未来可能产生后续进展的事项。
 
+## 医药日历
+汇总候选中 sourceType=bydrug-calendar 的公开会议/事件入口；没有公开事件详情时只给原始日历链接，不推断活动。
+
 编辑规则：
 - 只使用候选 JSON 中的信息，不补充记忆或常识，不猜测。
 - 选择约 15-30 条高信号内容；没有可靠内容的栏目写“今日无高信号更新”，不要凑数。
@@ -391,6 +502,7 @@ function buildPrompt(date, items, collectionStats) {
 - 预印本必须显著标注“未经同行评议”，列出通讯作者和单位；若没有对应字段，写“通讯作者/单位：未核验”，不能默认末位作者就是通讯作者。
 - 若有 authorProfile，用论文数、总引用数、h-index、ORCID、机构和主要研究主题描述其公开学术轨迹。对“水平如何”采用证据化措辞，如“公开指标显示研究积累较深/尚处于早期”，同时提醒作者消歧和指标局限；禁止仅凭学校或单一 h-index 下结论。
 - 同一事件有多条报道时合并，优先保留官方、监管机构、论文原文，其次是高质量媒体。
+- 医药魔方内容的来源写成“原发布方 via 医药魔方 ByDrug”；行业报告注明发布机构、标签和免费/VIP状态。不得绕过登录或付费墙，也不得声称已阅读未公开的报告正文。
 - 明确区分公司公告、媒体报道、论文/预印本和人物观点；预印本必须标“未经同行评议”。
 - 不把相关性当因果，不把早期研究写成临床结论，不提供投资或医疗建议。
 - 人名、公司、药物、模型等专有名词保留英文或官方中文名；技术术语可保留 AI、LLM、foundation model、single-cell 等。
@@ -447,13 +559,14 @@ async function main() {
     console.log(`Notion page already exists; skipped collection and model call: ${target.existing.url}`);
     return;
   }
-  const [news, researchRaw, preprintsRaw, podcasts, xPosts, custom, journalMetrics] = await Promise.all([
+  const [news, researchRaw, preprintsRaw, podcasts, xPosts, custom, byDrug, journalMetrics] = await Promise.all([
     collectNews(config, errors),
     collectEuropePmc(config, errors),
     collectBiorxiv(config, errors),
     collectPodcasts(config, errors),
     collectX(config, errors),
     collectCustomFeeds(config, errors),
+    collectByDrug(config, errors),
     loadJournalMetrics(errors),
   ]);
   const [research, preprints] = await Promise.all([
@@ -461,13 +574,13 @@ async function main() {
     enrichResearchItems(preprintsRaw, journalMetrics, errors),
   ]);
 
-  const ordered = [...research, ...preprints, ...xPosts, ...podcasts, ...custom, ...news]
+  const ordered = [...research, ...preprints, ...byDrug, ...xPosts, ...podcasts, ...custom, ...news]
     .sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0));
   const items = compactItems(dedupeItems(ordered), config.maxItemsForModel);
   if (items.length === 0) throw new Error(`No source items collected. ${errors.join(' | ')}`);
 
   const stats = {
-    collected: { news: news.length, research: research.length, preprints: preprints.length, podcasts: podcasts.length, x: xPosts.length, custom: custom.length },
+    collected: { news: news.length, research: research.length, preprints: preprints.length, podcasts: podcasts.length, byDrug: byDrug.length, x: xPosts.length, custom: custom.length },
     sentToModel: items.length,
     lookbackHours: config.lookbackHours,
     nonFatalErrors: errors,
@@ -477,6 +590,11 @@ async function main() {
     console.log(JSON.stringify({
       stats,
       sample: items.slice(0, 10),
+      byDrugSample: [
+        ...items.filter((item) => item.sourceType === 'bydrug-news').slice(0, 5),
+        ...items.filter((item) => item.sourceType === 'bydrug-report').slice(0, 5),
+        ...items.filter((item) => item.sourceType === 'bydrug-calendar').slice(0, 1),
+      ],
       researchSample: items.filter((item) => ['research', 'preprint'].includes(item.sourceType)).slice(0, 5),
     }, null, 2));
     return;

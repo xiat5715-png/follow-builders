@@ -101,6 +101,7 @@ export function compactItems(items, maxItems = 120) {
     correspondingAuthor: item.correspondingAuthor,
     correspondingInstitution: item.correspondingInstitution,
     authorProfile: item.authorProfile,
+    metadata: item.metadata,
   }));
 }
 

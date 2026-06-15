@@ -2,6 +2,14 @@
   "lookbackHours": 48,
   "maxItemsPerQuery": 8,
   "maxItemsForModel": 120,
+  "byDrug": {
+    "enabled": true,
+    "newsUrl": "https://bydrug.pharmcube.com/news",
+    "reportUrl": "https://bydrug.pharmcube.com/report",
+    "calendarUrl": "https://bydrug.pharmcube.com/calendar",
+    "maxNewsItems": 20,
+    "maxReportItems": 6
+  },
   "newsQueries": [
     {
       "id": "global-big-pharma",
