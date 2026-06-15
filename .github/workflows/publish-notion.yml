@@ -2,8 +2,9 @@ name: Publish Digest to Notion
 
 on:
   schedule:
-    # 08:00 Asia/Shanghai. GitHub Actions schedules use UTC.
-    - cron: '0 0 * * *'
+    # Primary 08:07 and backup 09:07 Asia/Shanghai. Existing-page checks make
+    # the backup exit before fetching feeds or calling DeepSeek.
+    - cron: '7 0,1 * * *'
   workflow_dispatch:
 
 jobs:

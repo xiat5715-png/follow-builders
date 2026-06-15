@@ -2,8 +2,9 @@ name: Publish Pharma and AI4S Intelligence
 
 on:
   schedule:
-    # 08:30 Asia/Shanghai. GitHub Actions schedules use UTC.
-    - cron: '30 0 * * *'
+    # Primary 08:37 and backup 09:37 Asia/Shanghai. Existing-page checks make
+    # the backup exit before collection or the DeepSeek call.
+    - cron: '37 0,1 * * *'
   workflow_dispatch:
 
 jobs:

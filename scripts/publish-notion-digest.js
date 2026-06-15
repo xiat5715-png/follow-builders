@@ -69,16 +69,39 @@ async function findExistingPage(notion, dataSourceId, titleProperty, title) {
   return result.results[0];
 }
 
+async function resolveNotionTarget(title) {
+  const notion = new Client({
+    auth: process.env.NOTION_TOKEN,
+    notionVersion: '2026-03-11',
+  });
+  const database = await notion.databases.retrieve({
+    database_id: process.env.NOTION_DATABASE_ID,
+  });
+  const dataSource = selectDataSource(database);
+  const schema = await notion.dataSources.retrieve({
+    data_source_id: dataSource.id,
+  });
+  const titleProperty = findTitleProperty(schema.properties);
+  const existing = await findExistingPage(notion, dataSource.id, titleProperty, title);
+  return { notion, dataSource, titleProperty, existing };
+}
+
 async function main() {
   requireEnv(process.env, ['DEEPSEEK_API_KEY', 'NOTION_TOKEN', 'NOTION_DATABASE_ID']);
+
+  const date = beijingDate();
+  const title = makePageTitle(date);
+  const target = await resolveNotionTarget(title);
+  if (target.existing && process.env.FORCE_NOTION_CREATE !== 'true') {
+    console.log(`Notion page already exists; skipped model call: ${target.existing.url}`);
+    return;
+  }
 
   const [feedX, feedPodcasts, feedBlogs] = await Promise.all([
     fetchJson(FEED_X_URL),
     fetchJson(FEED_PODCASTS_URL),
     fetchJson(FEED_BLOGS_URL),
   ]);
-  const date = beijingDate();
-  const title = makePageTitle(date);
   const feeds = compactFeeds({ feedX, feedPodcasts, feedBlogs });
 
   const deepseek = new OpenAI({
@@ -102,29 +125,10 @@ async function main() {
     throw new Error('DeepSeek returned an empty digest.');
   }
 
-  const notion = new Client({
-    auth: process.env.NOTION_TOKEN,
-    notionVersion: '2026-03-11',
-  });
-  const database = await notion.databases.retrieve({
-    database_id: process.env.NOTION_DATABASE_ID,
-  });
-  const dataSource = selectDataSource(database);
-  const schema = await notion.dataSources.retrieve({
-    data_source_id: dataSource.id,
-  });
-  const titleProperty = findTitleProperty(schema.properties);
-
-  const existing = await findExistingPage(notion, dataSource.id, titleProperty, title);
-  if (existing && process.env.FORCE_NOTION_CREATE !== 'true') {
-    console.log(`Notion page already exists: ${existing.url}`);
-    return;
-  }
-
-  const page = await notion.pages.create({
-    parent: { data_source_id: dataSource.id },
+  const page = await target.notion.pages.create({
+    parent: { data_source_id: target.dataSource.id },
     properties: {
-      [titleProperty]: {
+      [target.titleProperty]: {
         title: [{ text: { content: title } }],
       },
     },

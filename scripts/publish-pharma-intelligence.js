@@ -412,7 +412,7 @@ async function findExistingPage(notion, dataSourceId, titleProperty, title) {
   return result.results[0];
 }
 
-async function publishToNotion(markdown, title) {
+async function resolveNotionTarget(title) {
   const databaseId = process.env.PHARMA_NOTION_DATABASE_ID || process.env.NOTION_DATABASE_ID;
   if (!databaseId) throw new Error('Missing PHARMA_NOTION_DATABASE_ID or NOTION_DATABASE_ID.');
   const notion = new Client({ auth: process.env.NOTION_TOKEN, notionVersion: '2026-03-11' });
@@ -421,13 +421,13 @@ async function publishToNotion(markdown, title) {
   const schema = await notion.dataSources.retrieve({ data_source_id: dataSource.id });
   const titleProperty = findTitleProperty(schema.properties);
   const existing = await findExistingPage(notion, dataSource.id, titleProperty, title);
-  if (existing && process.env.FORCE_NOTION_CREATE !== 'true') {
-    console.log(`Notion page already exists: ${existing.url}`);
-    return existing;
-  }
-  const page = await notion.pages.create({
-    parent: { data_source_id: dataSource.id },
-    properties: { [titleProperty]: { title: [{ text: { content: title } }] } },
+  return { notion, dataSource, titleProperty, existing };
+}
+
+async function publishToNotion(markdown, title, target) {
+  const page = await target.notion.pages.create({
+    parent: { data_source_id: target.dataSource.id },
+    properties: { [target.titleProperty]: { title: [{ text: { content: title } }] } },
     icon: { type: 'emoji', emoji: '💊' },
     markdown,
   });
@@ -440,6 +440,13 @@ async function main() {
   if (!dryRun) requireEnv(process.env, ['DEEPSEEK_API_KEY', 'NOTION_TOKEN']);
   const config = JSON.parse(await readFile(CONFIG_PATH, 'utf8'));
   const errors = [];
+  const date = beijingDate();
+  const title = makePharmaPageTitle(date);
+  const target = dryRun ? null : await resolveNotionTarget(title);
+  if (target?.existing && process.env.FORCE_NOTION_CREATE !== 'true') {
+    console.log(`Notion page already exists; skipped collection and model call: ${target.existing.url}`);
+    return;
+  }
   const [news, researchRaw, preprintsRaw, podcasts, xPosts, custom, journalMetrics] = await Promise.all([
     collectNews(config, errors),
     collectEuropePmc(config, errors),
@@ -475,8 +482,6 @@ async function main() {
     return;
   }
 
-  const date = beijingDate();
-  const title = makePharmaPageTitle(date);
   const deepseek = new OpenAI({ apiKey: process.env.DEEPSEEK_API_KEY, baseURL: 'https://api.deepseek.com' });
   const response = await deepseek.chat.completions.create({
     model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
@@ -498,7 +503,7 @@ async function main() {
     totalTokens: cost.total,
     estimatedUsd: Number(cost.usd.toFixed(6)),
   })}`);
-  await publishToNotion(markdown, title);
+  await publishToNotion(markdown, title, target);
 }
 
 main().catch((error) => {
