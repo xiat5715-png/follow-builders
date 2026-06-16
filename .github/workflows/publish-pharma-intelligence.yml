@@ -2,9 +2,9 @@ name: Publish Pharma and AI4S Intelligence
 
 on:
   schedule:
-    # Primary 08:37 and backup 09:37 Asia/Shanghai. Existing-page checks make
-    # the backup exit before collection or the DeepSeek call.
-    - cron: '37 0,1 * * *'
+    # Retry window: 08:17-10:17 Asia/Shanghai. Existing-page checks make
+    # later runs exit before collection or the DeepSeek call.
+    - cron: '17,47 0,1,2 * * *'
   workflow_dispatch:
     inputs:
       force_create:

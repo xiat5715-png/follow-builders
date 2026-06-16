@@ -1008,22 +1008,27 @@ async function main() {
   const podcastsOnly = args.includes("--podcasts-only");
   const blogsOnly = args.includes("--blogs-only");
 
-  // If a specific --*-only flag is set, only that feed type runs.
-  // If no flag is set, all three run.
-  const runTweets = tweetsOnly || (!podcastsOnly && !blogsOnly);
-  const runPodcasts = podcastsOnly || (!tweetsOnly && !blogsOnly);
-  const runBlogs = blogsOnly || (!tweetsOnly && !podcastsOnly);
-
   const xBearerToken = process.env.X_BEARER_TOKEN;
   const pod2txtKey = process.env.POD2TXT_API_KEY;
 
-  if (runPodcasts && !pod2txtKey) {
+  if (podcastsOnly && !pod2txtKey) {
     console.error("POD2TXT_API_KEY not set");
     process.exit(1);
   }
-  if (runTweets && !xBearerToken) {
+  if (tweetsOnly && !xBearerToken) {
     console.error("X_BEARER_TOKEN not set");
     process.exit(1);
+  }
+
+  // If a specific --*-only flag is set, only that feed type runs.
+  // If no flag is set, run every source that has the required credentials.
+  const runTweets = tweetsOnly || (!podcastsOnly && !blogsOnly && Boolean(xBearerToken));
+  const runPodcasts = podcastsOnly || (!tweetsOnly && !blogsOnly && Boolean(pod2txtKey));
+  const runBlogs = blogsOnly || (!tweetsOnly && !podcastsOnly);
+
+  if (!tweetsOnly && !podcastsOnly && !blogsOnly) {
+    if (!xBearerToken) console.error("X_BEARER_TOKEN not set; skipping X/Twitter feed");
+    if (!pod2txtKey) console.error("POD2TXT_API_KEY not set; skipping podcast transcripts");
   }
 
   const sources = await loadSources();
