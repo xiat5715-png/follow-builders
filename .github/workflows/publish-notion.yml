@@ -6,6 +6,12 @@ on:
     # later runs exit before fetching feeds or calling DeepSeek.
     - cron: '7,37 0,1,2 * * *'
   workflow_dispatch:
+    inputs:
+      force_create:
+        description: Create a new page even if today's digest already exists
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   publish:
@@ -33,4 +39,5 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL }}
+          FORCE_NOTION_CREATE: ${{ inputs.force_create || 'false' }}
         run: npm run publish-notion
