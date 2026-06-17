@@ -1,0 +1,48 @@
+{
+  "enabled": true,
+  "lookbackDays": 21,
+  "maxItemsPerSource": 3,
+  "podcastFeeds": [
+    {
+      "name": "Dwarkesh Podcast",
+      "feedUrl": "https://apple.dwarkesh-podcast.workers.dev/feed.rss",
+      "applePodcastId": "1516093381",
+      "homepage": "https://www.dwarkesh.com/"
+    },
+    {
+      "name": "张小珺Jùn｜商业访谈录",
+      "feedUrl": "https://feed.xyzfm.space/dk4yh3pkpjp3",
+      "homepage": "https://podcasts.apple.com/us/podcast/id1634356920"
+    },
+    {
+      "name": "晚点聊 LateTalk",
+      "feedUrl": "https://feeds.fireside.fm/latetalk/rss",
+      "homepage": "https://podcasts.apple.com/us/podcast/id1564877433"
+    },
+    {
+      "name": "晚点在场",
+      "feedUrl": "https://feed.xyzfm.space/ayrmwhxwgy6q",
+      "homepage": "https://podcasts.apple.com/us/podcast/id1827801264"
+    },
+    {
+      "name": "Sharp Tech with Ben Thompson",
+      "feedUrl": "https://sharptech.fm/feed/podcast",
+      "applePodcastId": "1646152812",
+      "homepage": "https://sharptech.fm/"
+    }
+  ],
+  "latePost": {
+    "enabled": true,
+    "name": "晚点 LatePost",
+    "apiUrl": "https://www.latepost.com/site/index",
+    "homepage": "https://www.latepost.com/"
+  },
+  "wechatSearches": [
+    {
+      "name": "海外独角兽（微信公众号）",
+      "query": "海外独角兽",
+      "publisher": "海外独角兽",
+      "searchUrl": "https://weixin.sogou.com/weixin"
+    }
+  ]
+}
