@@ -25,6 +25,7 @@ const FEED_BLOGS_URL = process.env.FEED_BLOGS_URL ||
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const WATCHLIST_CONFIG_PATH = join(SCRIPT_DIR, '..', 'config', 'ai-watchlist-sources.json');
 const WATCHLIST_USER_AGENT = 'Mozilla/5.0 (compatible; ai-watchlist-digest/1.0)';
+const USE_PLAYWRIGHT = process.env.AI_USE_PLAYWRIGHT === 'true';
 
 const rssParser = new Parser({
   timeout: 20000,
@@ -62,6 +63,21 @@ function stripHtml(value = '') {
 function compactText(value = '', maxLength = 1200) {
   const text = stripHtml(value);
   return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+async function withPlaywrightPage(task) {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({
+      userAgent: WATCHLIST_USER_AGENT,
+      ignoreHTTPSErrors: true,
+    });
+    const page = await context.newPage();
+    return await task(page);
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }
 
 function beijingDate(now = new Date()) {
@@ -146,6 +162,33 @@ async function collectWatchlistPodcasts(config, errors) {
 async function collectLatePost(config, errors) {
   const settings = config.latePost;
   if (!settings?.enabled) return [];
+  if (USE_PLAYWRIGHT) {
+    try {
+      return await withPlaywrightPage(async (page) => {
+        await page.goto(settings.homepage, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        const payload = await page.evaluate(async ({ apiUrl, maxItems }) => {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ page: '1', limit: String(maxItems) }),
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        }, { apiUrl: settings.apiUrl, maxItems: config.maxItemsPerSource || 3 });
+        return (payload.data || []).slice(0, config.maxItemsPerSource || 3).map((item) => ({
+          source: settings.name,
+          sourceType: 'watchlist-article',
+          fetcher: 'playwright',
+          title: stripHtml(item.title || 'Untitled'),
+          url: new URL(item.detail_url || '/', settings.homepage).toString(),
+          publishedAt: item.release_time || '',
+          summary: compactText(item.abstract || item.intro || '', 800),
+        }));
+      });
+    } catch (error) {
+      errors.push(`${settings.name} Playwright fallback: ${error.message}`);
+    }
+  }
   try {
     const params = new URLSearchParams({ page: '1', limit: String(config.maxItemsPerSource || 3) });
     const response = await fetch(settings.apiUrl, {
@@ -163,6 +206,7 @@ async function collectLatePost(config, errors) {
     return (payload.data || []).slice(0, config.maxItemsPerSource || 3).map((item) => ({
       source: settings.name,
       sourceType: 'watchlist-article',
+      fetcher: 'http',
       title: stripHtml(item.title || 'Untitled'),
       url: new URL(item.detail_url || '/', settings.homepage).toString(),
       publishedAt: item.release_time || '',
@@ -181,9 +225,14 @@ async function collectWechatSearches(config, errors, notes) {
       const url = new URL(source.searchUrl || 'https://weixin.sogou.com/weixin');
       url.searchParams.set('type', '2');
       url.searchParams.set('query', source.query);
-      const html = await fetchText(url.toString(), {
-        headers: { Accept: 'text/html,application/xhtml+xml' },
-      });
+      const html = USE_PLAYWRIGHT
+        ? await withPlaywrightPage(async (page) => {
+          await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: 30_000 });
+          return page.content();
+        })
+        : await fetchText(url.toString(), {
+          headers: { Accept: 'text/html,application/xhtml+xml' },
+        });
       const $ = load(html);
       const candidates = [];
       $('ul.news-list > li').each((_, element) => {
@@ -197,6 +246,7 @@ async function collectWechatSearches(config, errors, notes) {
         candidates.push({
           source: source.name,
           sourceType: 'watchlist-wechat',
+          fetcher: USE_PLAYWRIGHT ? 'playwright' : 'http',
           title: stripHtml(link.html() || link.text()),
           url: new URL(href, 'https://weixin.sogou.com').toString(),
           publishedAt: timestampMatch ? new Date(Number(timestampMatch[1]) * 1000).toISOString() : '',

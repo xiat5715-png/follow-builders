@@ -32,6 +32,10 @@ jobs:
         working-directory: scripts
         run: npm ci
 
+      - name: Install Playwright browser
+        working-directory: scripts
+        run: npx playwright install chromium
+
       - name: Generate Chinese digest and publish to Notion
         working-directory: scripts
         env:
@@ -40,4 +44,5 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL }}
           FORCE_NOTION_CREATE: ${{ inputs.force_create || 'false' }}
+          AI_USE_PLAYWRIGHT: true
         run: npm run publish-notion
