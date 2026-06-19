@@ -90,6 +90,7 @@ export function compactItems(items, maxItems = 120) {
     publishedAt: item.publishedAt,
     source: item.source,
     sourceType: item.sourceType,
+    fetcher: item.fetcher,
     bucketHint: item.bucketHint,
     language: item.language,
     authors: item.authors,

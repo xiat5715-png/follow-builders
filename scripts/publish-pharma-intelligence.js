@@ -27,6 +27,8 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = join(SCRIPT_DIR, '..', 'config', 'pharma-intelligence-sources.json');
 const JOURNAL_METRICS_PATH = join(SCRIPT_DIR, '..', 'config', 'journal-metrics.json');
 const parser = new Parser({ timeout: 20_000 });
+const USE_PLAYWRIGHT = process.env.PHARMA_USE_PLAYWRIGHT === 'true';
+const BYDRUG_USER_AGENT = 'Mozilla/5.0 (compatible; pharma-ai4s-intelligence/1.0)';
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
@@ -56,6 +58,37 @@ async function fetchText(url, options = {}) {
   return response.text();
 }
 
+async function withPlaywrightPage(task) {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({
+      userAgent: BYDRUG_USER_AGENT,
+      ignoreHTTPSErrors: true,
+    });
+    const page = await context.newPage();
+    return await task(page);
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+async function loadByDrugHtml(url, waitSelector, errors, label) {
+  if (USE_PLAYWRIGHT) {
+    try {
+      return await withPlaywrightPage(async (page) => {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+        await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+        if (waitSelector) await page.waitForSelector(waitSelector, { timeout: 15_000 }).catch(() => {});
+        return { html: await page.content(), fetcher: 'playwright' };
+      });
+    } catch (error) {
+      errors.push(`ByDrug ${label} Playwright: ${error.message}`);
+    }
+  }
+  return { html: await fetchText(url), fetcher: 'http' };
+}
+
 function absoluteByDrugUrl(value) {
   return new URL(value, 'https://bydrug.pharmcube.com').toString();
 }
@@ -74,7 +107,7 @@ async function collectByDrug(config, errors) {
   if (!settings?.enabled) return [];
   const items = [];
   try {
-    const html = await fetchText(settings.newsUrl);
+    const { html, fetcher } = await loadByDrugHtml(settings.newsUrl, 'a.news-title', errors, 'news');
     const $ = load(html);
     $('a.news-title').slice(0, settings.maxNewsItems || 20).each((_, element) => {
       const link = $(element);
@@ -94,6 +127,7 @@ async function collectByDrug(config, errors) {
         publishedAt: relativeChineseTimeToIso(timeText),
         source: `${source} via 医药魔方 ByDrug`,
         sourceType: 'bydrug-news',
+        fetcher,
         bucketHint: 'china',
         language: 'zh',
         metadata: { module: '医药新闻', displayedTime: timeText },
@@ -104,7 +138,7 @@ async function collectByDrug(config, errors) {
   }
 
   try {
-    const html = await fetchText(settings.reportUrl);
+    const { html, fetcher } = await loadByDrugHtml(settings.reportUrl, 'a.fileName', errors, 'reports');
     const $ = load(html);
     let reportCount = 0;
     $('a.fileName').each((_, element) => {
@@ -125,6 +159,7 @@ async function collectByDrug(config, errors) {
         publishedAt,
         source: `${organization} via 医药魔方 ByDrug`,
         sourceType: 'bydrug-report',
+        fetcher,
         bucketHint: labels.some((label) => /新药研发|临床|学术会议|技术/.test(label)) ? 'rd-regulatory' : 'china',
         language: 'zh',
         metadata: { module: '行业报告', labels, access },
