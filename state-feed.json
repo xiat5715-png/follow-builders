@@ -2,9 +2,7 @@
   "seenTweets": {},
   "seenVideos": {},
   "seenArticles": {
-    "https://www.anthropic.com/engineering/april-23-postmortem": 1790945119285,
-    "https://www.anthropic.com/engineering/managed-agents": 1790945120001,
-    "https://claude.com/blog/claude-for-small-business-launches-new-workflows-integrations-and-training-programs": 1790945120677,
-    "https://claude.com/blog/cowork-is-now-claude": 1791027905837
+    "https://claude.com/blog/cowork-is-now-claude": 1791027905837,
+    "https://www.anthropic.com/engineering/how-we-contain-claude": 1791552246392
   }
 }
