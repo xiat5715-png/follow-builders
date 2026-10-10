@@ -2,7 +2,8 @@
   "seenTweets": {},
   "seenVideos": {},
   "seenArticles": {
-    "https://claude.com/blog/cowork-is-now-claude": 1791027905837,
-    "https://www.anthropic.com/engineering/how-we-contain-claude": 1791552246392
+    "https://www.anthropic.com/engineering/how-we-contain-claude": 1791552246392,
+    "https://www.anthropic.com/engineering/april-23-postmortem": 1791635959092,
+    "https://www.anthropic.com/engineering/managed-agents": 1791635959745
   }
 }
